@@ -2,6 +2,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import Libro
 from .serializers import LibroSerializer, LibroSerializerReg , LibroSerializerUpdate
+from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from django.core.paginator import Paginator
 
@@ -9,6 +10,22 @@ from django.core.paginator import Paginator
 @swagger_auto_schema(
     method='get',
     operation_description='Lista todos los libros.',
+    manual_parameters=[
+        openapi.Parameter(
+            'page',
+            openapi.IN_QUERY,
+            description='Número de página',
+            type=openapi.TYPE_INTEGER,
+            default=1
+        ),
+        openapi.Parameter(
+            'pagesize',
+            openapi.IN_QUERY,
+            description='Cantidad de libros por página',
+            type=openapi.TYPE_INTEGER,
+            default=3
+        ),
+    ],
     responses={200: 'Exitoso'}
 )
 
@@ -17,10 +34,18 @@ from django.core.paginator import Paginator
 def lista_libros(request):
 
     page = request.GET.get('page', 1)
+    pagesize = request.GET.get('pagesize', 3)
 
     libros = Libro.objects.all()
 
-    paginator = Paginator(libros, 3)  # 3 libros por página
+    try:
+        pagesize = int(pagesize)
+        if pagesize <= 0:
+            pagesize = 3
+    except (TypeError, ValueError):
+        pagesize = 3
+
+    paginator = Paginator(libros, pagesize)
 
     page_obj = paginator.get_page(page)
 
@@ -35,7 +60,6 @@ def lista_libros(request):
 @swagger_auto_schema(
     method='post',
     operation_description='Añade un nuevo libro.',
-    request_body=LibroSerializerReg,
     responses={200: 'Exitoso', 400: 'Error'}
 )
 
