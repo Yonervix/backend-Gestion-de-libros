@@ -5,6 +5,7 @@ from .serializers import LibroSerializer, LibroSerializerReg , LibroSerializerUp
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from django.core.paginator import Paginator
+from .response import Result
 
 
 @swagger_auto_schema(
@@ -58,6 +59,74 @@ def lista_libros(request):
     })
 
 @swagger_auto_schema(
+    method='get',
+    operation_description='Lista los libros paginados con búsqueda.',
+    manual_parameters=[
+        openapi.Parameter(
+            'search',
+            openapi.IN_QUERY,
+            description='Término de búsqueda por título o autor',
+            type=openapi.TYPE_STRING
+        ),
+    ],
+    responses={200: 'Exitoso'}
+)
+
+
+@api_view(['GET'])
+def lista_libros_paginados(request, page=1):
+    search = request.GET.get('search', '')
+    pagesize = request.GET.get('pagesize', 3)
+
+    libros = Libro.objects.all()
+
+    if search:
+        libros = libros.filter(
+            titulo__icontains=search
+        ) | libros.filter(
+            autor__icontains=search
+        )
+
+    try:
+        pagesize = int(pagesize)
+        if pagesize <= 0:
+            pagesize = 3
+    except (TypeError, ValueError):
+        pagesize = 3
+
+    paginator = Paginator(libros, pagesize)
+    page_obj = paginator.get_page(page)
+
+    serializer = LibroSerializer(page_obj, many=True)
+
+    return Result.ResponsePaginator(
+        Mensaje=['Exitoso'],
+        data=serializer.data,
+        total_pages=paginator.num_pages,
+        page=page_obj.number,
+        button_previous=page_obj.has_previous(),
+        button_next=page_obj.has_next()
+    )
+
+@swagger_auto_schema(
+    method='get',
+    operation_description='Obtiene un libro por ID.',
+    responses={200: 'Exitoso', 404: 'No encontrado'}
+)
+
+
+@api_view(['GET'])
+def ver_libro(request, id):
+    try:
+        libro = Libro.objects.get(id=id)
+    except Libro.DoesNotExist:
+        return Result.Error(['Libro no encontrado'])
+
+    serializer = LibroSerializer(libro)
+
+    return Result.Exitosa(['Exitoso'], [serializer.data], 200)
+
+@swagger_auto_schema(
     method='post',
     operation_description='Añade un nuevo libro.',
     responses={200: 'Exitoso', 400: 'Error'}
@@ -71,16 +140,17 @@ def crear_libro(request):
     fecha_publicacion = request.data.get('fecha_publicacion')
 
     if not titulo or not autor or not precio or not fecha_publicacion:
-        return Response({'error': 'Faltan campos requeridos'}, status=400)
+        return Result.Error(['Faltan campos requeridos'])
 
     serialData = LibroSerializerReg(data=request.data)
 
     if serialData.is_valid():
         serialData.save()
     else:
-        return Response(serialData.errors, status=400)
+        errores = [str(msj) for msj in serialData.errors.values()]
+        return Result.Error(errores)
 
-    return Response({'message': 'Libro creado exitosamente'}, status=201)
+    return Result.Exitosa(['Libro creado exitosamente'], [], 201)
 
 @swagger_auto_schema(
     method='put',
@@ -92,7 +162,6 @@ def crear_libro(request):
 @api_view(['PUT'])
 def actualizar_libro(request):
     pk = request.data.get('id')
-    print(pk)
 
     titulo = request.data.get('titulo')
     autor = request.data.get('autor')
@@ -100,12 +169,12 @@ def actualizar_libro(request):
     fecha_publicacion = request.data.get('fecha_publicacion')
 
     if not titulo or not autor or not precio or not fecha_publicacion:
-        return Response({'error': 'Faltan campos requeridos'}, status=400)
+        return Result.Error(['Faltan campos requeridos'])
 
     try:
         libro_instance = Libro.objects.get(id=pk)
     except Libro.DoesNotExist:
-        return Response({'error': 'Libro no encontrado'}, status=404)
+        return Result.Error(['Libro no encontrado'])
 
     serialData = LibroSerializerUpdate(
         instance=libro_instance,
@@ -115,12 +184,10 @@ def actualizar_libro(request):
     if serialData.is_valid():
         serialData.save()
     else:
-        return Response(serialData.errors, status=400)
+        errores = [str(msj) for msj in serialData.errors.values()]
+        return Result.Error(errores)
 
-    return Response(
-        {'message': 'Libro actualizado exitosamente'},
-        status=200
-    )
+    return Result.Exitosa(['Libro actualizado exitosamente'], [], 200)
 
 @swagger_auto_schema(
     method='delete',
@@ -134,7 +201,7 @@ def eliminar_libro(request, id):
     try:
         libro_instance = Libro.objects.get(id=id)
     except Libro.DoesNotExist:
-        return Response({'error': 'Libro no encontrado'}, status=404)
+        return Result.Error(['Libro no encontrado'])
 
     libro_instance.delete()
-    return Response({'message': 'Libro eliminado exitosamente'}, status=200)
+    return Result.Exitosa(['Libro eliminado exitosamente'], [], 200)

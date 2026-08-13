@@ -23,6 +23,8 @@ from drf_yasg import openapi\
 
 from contactos.views import (
     lista_libros,
+    lista_libros_paginados,
+    ver_libro,
     crear_libro,
     actualizar_libro,
     eliminar_libro
@@ -45,6 +47,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     path('libros/', lista_libros, name='lista_libros'),
+    path('libros/paginados/<int:page>/', lista_libros_paginados, name='lista_libros_paginados'),
+    path('libros/view/<int:id>/', ver_libro, name='ver_libro'),
     path('libros/crear/', crear_libro, name='crear_libro'),
     path('libros/actualizar/', actualizar_libro, name='actualizar_libro'),
     path('libros/eliminar/<int:id>/', eliminar_libro, name='eliminar_libro'),
